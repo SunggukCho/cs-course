@@ -1,5 +1,5 @@
 import { auth, signIn, signOut } from "@/auth";
-import { getCompletedDays } from "@/lib/queries";
+import { getCompletedDays, getHighlights } from "@/lib/queries";
 import Course from "@/components/Course";
 import OneTap from "@/components/OneTap";
 
@@ -32,7 +32,10 @@ export default async function Home() {
     );
   }
 
-  const completed = await getCompletedDays(session.user.id);
+  const [completed, highlights] = await Promise.all([
+    getCompletedDays(session.user.id),
+    getHighlights(session.user.id),
+  ]);
 
   return (
     <>
@@ -55,7 +58,7 @@ export default async function Home() {
           </button>
         </form>
       </nav>
-      <Course initialDone={completed} />
+      <Course initialDone={completed} initialHighlights={highlights} />
     </>
   );
 }

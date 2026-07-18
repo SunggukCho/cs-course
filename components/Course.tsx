@@ -1,19 +1,39 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { CURRICULUM, PHASE_STARTS, TOTAL_DAYS, dayInfo, locate } from "@/lib/curriculum";
 import { LESSONS } from "@/lib/lessons";
-import { toggleDay } from "@/lib/actions";
+import { toggleDay, createHighlight, deleteHighlight } from "@/lib/actions";
+import type { HighlightRow } from "@/lib/queries";
+import { extractAnchor, locateAnchor, paintRange, unpaint } from "@/lib/highlight-anchor";
 
 const ROMAN = ["I", "II", "III", "IV", "V", "VI"];
+const HL_COLORS: { key: string; label: string }[] = [
+  { key: "y", label: "노랑" },
+  { key: "g", label: "초록" },
+  { key: "p", label: "분홍" },
+];
 
-export default function Course({ initialDone }: { initialDone: number[] }) {
+export default function Course({
+  initialDone,
+  initialHighlights,
+}: {
+  initialDone: number[];
+  initialHighlights: HighlightRow[];
+}) {
   const [done, setDone] = useState<Set<number>>(() => new Set(initialDone));
   const [openDay, setOpenDay] = useState<number | null>(null);
   const [openPhases, setOpenPhases] = useState<Set<number> | null>(null); // null = auto(오늘이 속한 phase)
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [toast, setToast] = useState("");
   const [, startTransition] = useTransition();
+
+  // 하이라이트 상태
+  const [hls, setHls] = useState<HighlightRow[]>(initialHighlights);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const pendingAnchorRef = useRef<{ exact: string; prefix: string; suffix: string } | null>(null);
+  const [popover, setPopover] = useState<{ x: number; y: number; flip: boolean } | null>(null);
+  const [tip, setTip] = useState<{ x: number; y: number; hid: number } | null>(null);
 
   const today = useMemo(() => {
     for (let i = 1; i <= TOTAL_DAYS; i++) if (!done.has(i)) return i;
@@ -55,6 +75,104 @@ export default function Course({ initialDone }: { initialDone: number[] }) {
   function closeLesson() {
     setOpenDay(null);
     document.body.style.overflow = "";
+    setPopover(null);
+    setTip(null);
+    pendingAnchorRef.current = null;
+  }
+
+  // 선택 감지 → 팝오버 위치 계산 (setTimeout 0로 브라우저 선택 반영 이후)
+  function onBodyMouseUp() {
+    setTip(null);
+    setTimeout(() => {
+      const sel = window.getSelection();
+      const container = bodyRef.current;
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0 || !container) {
+        setPopover(null);
+        pendingAnchorRef.current = null;
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      if (!container.contains(range.commonAncestorContainer)) {
+        setPopover(null);
+        pendingAnchorRef.current = null;
+        return;
+      }
+      const anchor = extractAnchor(container, range);
+      if (anchor.exact.trim().length < 2) {
+        setPopover(null);
+        pendingAnchorRef.current = null;
+        return;
+      }
+      pendingAnchorRef.current = {
+        exact: anchor.exact,
+        prefix: anchor.prefix ?? "",
+        suffix: anchor.suffix ?? "",
+      };
+      const rect = range.getBoundingClientRect();
+      const flip = rect.top < 64; // 뷰포트 상단 근처면 아래쪽으로 보정
+      setPopover({ x: rect.left + rect.width / 2, y: flip ? rect.bottom : rect.top, flip });
+    }, 0);
+  }
+
+  // 본문 클릭 → mark면 삭제 툴팁
+  function onBodyClick(e: React.MouseEvent) {
+    const el = (e.target as HTMLElement).closest?.("mark.hl") as HTMLElement | null;
+    if (!el) {
+      setTip(null);
+      return;
+    }
+    const hid = Number(el.getAttribute("data-hid"));
+    const rect = el.getBoundingClientRect();
+    setPopover(null);
+    setTip({ x: rect.left + rect.width / 2, y: rect.top, hid });
+  }
+
+  // 스와치 클릭 → 낙관적 저장
+  function saveHighlight(color: string) {
+    const anchor = pendingAnchorRef.current;
+    const container = bodyRef.current;
+    if (!anchor || container === null || openDay === null) return;
+    setPopover(null);
+    window.getSelection()?.removeAllRanges();
+
+    const tempId = -Date.now();
+    const row: HighlightRow = { id: tempId, day: openDay, color, ...anchor };
+    setHls((prev) => [...prev, row]);
+    const loc = locateAnchor(container.textContent ?? "", anchor);
+    if (loc) paintRange(container, loc[0], loc[1], color, tempId);
+    pendingAnchorRef.current = null;
+
+    startTransition(() => {
+      createHighlight({ day: openDay, color, ...anchor })
+        .then(({ id }) => {
+          // 임시 id → 실제 id 치환 (state + data-hid 모두)
+          setHls((prev) => prev.map((h) => (h.id === tempId ? { ...h, id } : h)));
+          bodyRef.current
+            ?.querySelectorAll(`mark.hl[data-hid="${tempId}"]`)
+            .forEach((m) => m.setAttribute("data-hid", String(id)));
+        })
+        .catch(() => {
+          // 롤백
+          setHls((prev) => prev.filter((h) => h.id !== tempId));
+          if (bodyRef.current) unpaint(bodyRef.current, tempId);
+          showToast("하이라이트 저장 실패 — 다시 시도해 주세요");
+        });
+    });
+  }
+
+  // 삭제 (낙관적)
+  function removeHighlight(hid: number) {
+    setTip(null);
+    const removed = hls.find((h) => h.id === hid);
+    setHls((prev) => prev.filter((h) => h.id !== hid));
+    if (bodyRef.current) unpaint(bodyRef.current, hid);
+    if (hid < 0) return; // 아직 서버 저장 전인 임시 항목
+    startTransition(() => {
+      deleteHighlight(hid).catch(() => {
+        if (removed) setHls((prev) => [...prev, removed]);
+        showToast("삭제 실패 — 다시 시도해 주세요");
+      });
+    });
   }
   function markDone() {
     if (openDay !== null && !done.has(openDay)) {
@@ -210,6 +328,7 @@ export default function Course({ initialDone }: { initialDone: number[] }) {
               {openInfo.tag ? ` · ${openInfo.tag}` : ""}
             </div>
             <h2>{openInfo.topic}</h2>
+            <div className="l-body" ref={bodyRef} onMouseUp={onBodyMouseUp} onClick={onBodyClick}>
             {lesson ? (
               <>
                 <div dangerouslySetInnerHTML={{ __html: lesson.body }} />
@@ -271,6 +390,7 @@ export default function Course({ initialDone }: { initialDone: number[] }) {
                 진행할 수도 있습니다.
               </div>
             )}
+            </div>
             <div className="l-foot">
               {done.has(openDay) ? (
                 <button className="btn" onClick={markUndone}>
@@ -283,6 +403,34 @@ export default function Course({ initialDone }: { initialDone: number[] }) {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {popover && (
+        <div
+          className={`hl-pop${popover.flip ? " flip" : ""}`}
+          style={{ left: popover.x, top: popover.y }}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <span className="hl-pop-label">하이라이트</span>
+          {HL_COLORS.map((c) => (
+            <button
+              key={c.key}
+              className={`hl-swatch hl-${c.key}`}
+              aria-label={`${c.label} 형광펜`}
+              title={c.label}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => saveHighlight(c.key)}
+            />
+          ))}
+        </div>
+      )}
+
+      {tip && (
+        <div className="hl-tip" style={{ left: tip.x, top: tip.y }}>
+          <button className="hl-del" onClick={() => removeHighlight(tip.hid)}>
+            삭제
+          </button>
         </div>
       )}
 

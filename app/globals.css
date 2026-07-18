@@ -3,6 +3,7 @@
     --bg:#EDF1F7;--surface:#FFFFFF;--ink:#1B2432;--muted:#5F6B7E;--line:#D8DFE9;
     --accent:#D97D00;--accent-soft:#FBEEDC;--done:#2E6B4F;--wrong:#B3392E;
     --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --hl-y:255,216,74;--hl-g:126,211,161;--hl-p:255,158,146;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--bg);color:var(--ink);font-family:"Apple SD Gothic Neo","Pretendard","Segoe UI",system-ui,sans-serif;line-height:1.6;padding:28px 16px 64px}
@@ -100,3 +101,25 @@
 .dot-done{background:var(--done)}
 .dot-todo{background:var(--bg);border:1px solid var(--line)}
 .dot-today{border:2px solid var(--accent)}
+
+/* ---- 형광펜 하이라이트 ---- */
+mark.hl{background:transparent;color:inherit;padding:.05em .18em;margin:0 -.06em;border-radius:3px;-webkit-box-decoration-break:clone;box-decoration-break:clone;cursor:pointer}
+mark.hl-y{background-image:linear-gradient(100deg,rgba(var(--hl-y),0) .8%,rgba(var(--hl-y),.9) 2.6%,rgba(var(--hl-y),.55) 97%,rgba(var(--hl-y),0) 99%)}
+mark.hl-g{background-image:linear-gradient(100deg,rgba(var(--hl-g),0) .8%,rgba(var(--hl-g),.9) 2.6%,rgba(var(--hl-g),.55) 97%,rgba(var(--hl-g),0) 99%)}
+mark.hl-p{background-image:linear-gradient(100deg,rgba(var(--hl-p),0) .8%,rgba(var(--hl-p),.9) 2.6%,rgba(var(--hl-p),.55) 97%,rgba(var(--hl-p),0) 99%)}
+.l-body{position:relative}
+
+/* 선택 팝오버 (Variant A) */
+.hl-pop{position:fixed;transform:translate(-50%,-115%);z-index:70;display:flex;align-items:center;gap:8px;background:var(--ink);color:#fff;padding:7px 10px;border-radius:999px;box-shadow:0 6px 20px rgba(27,36,50,.28);white-space:nowrap}
+.hl-pop.flip{transform:translate(-50%,15%)}
+.hl-pop-label{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:#C7CFDB;padding-right:2px}
+.hl-swatch{width:20px;height:20px;border-radius:50%;border:2px solid rgba(255,255,255,.35);cursor:pointer;padding:0;transition:transform .1s}
+.hl-swatch:hover{transform:scale(1.15)}
+.hl-swatch.hl-y{background:rgb(var(--hl-y))}
+.hl-swatch.hl-g{background:rgb(var(--hl-g))}
+.hl-swatch.hl-p{background:rgb(var(--hl-p))}
+
+/* 삭제 툴팁 */
+.hl-tip{position:fixed;transform:translate(-50%,-125%);z-index:70}
+.hl-del{background:var(--wrong);color:#fff;border:none;font:inherit;font-size:12px;font-weight:600;padding:5px 12px;border-radius:8px;cursor:pointer;box-shadow:0 4px 14px rgba(179,57,46,.35)}
+.hl-del:hover{background:#9c2f26}
