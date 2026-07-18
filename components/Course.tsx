@@ -35,6 +35,7 @@ export default function Course({
   const [popover, setPopover] = useState<{ x: number; y: number; flip: boolean } | null>(null);
   const [tip, setTip] = useState<{ x: number; y: number; hid: number } | null>(null);
   const focusHidRef = useRef<number | null>(null);
+  const modalOpenRef = useRef(false); // ?day history 항목이 현재 스택에 있는지
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [repaintTick, setRepaintTick] = useState(0);
 
@@ -72,16 +73,68 @@ export default function Course({
 
   function openLesson(n: number) {
     setAnswers({});
+    // 모달 열림을 ?day=N 쿼리로 표현하고 history에 push → 뒤로가기 시 페이지를 떠나지 않고 모달만 닫힘
+    if (openDay !== null) {
+      // 이미 모달이 열려 있음(다른 day로 전환) → 스택을 쌓지 않고 교체
+      window.history.replaceState({ day: n }, "", `?day=${n}`);
+    } else {
+      window.history.pushState({ day: n }, "", `?day=${n}`);
+      modalOpenRef.current = true;
+    }
     setOpenDay(n);
     document.body.style.overflow = "hidden";
   }
   function closeLesson() {
-    setOpenDay(null);
-    document.body.style.overflow = "";
     setPopover(null);
     setTip(null);
     pendingAnchorRef.current = null;
+    if (modalOpenRef.current) {
+      // push해둔 ?day 항목을 되돌림 → popstate 핸들러가 상태를 정리
+      window.history.back();
+    } else {
+      setOpenDay(null);
+      document.body.style.overflow = "";
+    }
   }
+
+  // ?day 쿼리 ↔ 모달 상태 동기화 (뒤로/앞으로가기, 딥링크)
+  useEffect(() => {
+    const readDay = (): number | null => {
+      const d = new URLSearchParams(window.location.search).get("day");
+      const n = d ? Number(d) : NaN;
+      return Number.isInteger(n) && n >= 1 && n <= TOTAL_DAYS ? n : null;
+    };
+
+    // 딥링크(첫 로드에 ?day=N): 되돌아갈 base 항목을 아래에 깔고 모달 항목을 push
+    const initial = readDay();
+    if (initial !== null) {
+      window.history.replaceState({}, "", window.location.pathname);
+      window.history.pushState({ day: initial }, "", `?day=${initial}`);
+      modalOpenRef.current = true;
+      setOpenDay(initial);
+      document.body.style.overflow = "hidden";
+    }
+
+    const onPop = () => {
+      const n = readDay();
+      setPopover(null);
+      setTip(null);
+      pendingAnchorRef.current = null;
+      if (n !== null) {
+        setAnswers({});
+        setOpenDay(n);
+        document.body.style.overflow = "hidden";
+        modalOpenRef.current = true;
+      } else {
+        setOpenDay(null);
+        document.body.style.overflow = "";
+        modalOpenRef.current = false;
+      }
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 선택 감지 → 팝오버 위치 계산 (setTimeout 0로 브라우저 선택 반영 이후)
   function onBodyMouseUp() {
