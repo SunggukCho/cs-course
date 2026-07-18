@@ -127,3 +127,22 @@ mark.hl-p{background-image:linear-gradient(100deg,rgba(var(--hl-p),0) .8%,rgba(v
 /* 서랍 점프 시 플래시 (주황 글로우 2회) */
 @keyframes hlFlash{0%,50%,100%{box-shadow:0 0 0 0 rgba(217,125,0,0)}25%,75%{box-shadow:0 0 0 4px rgba(217,125,0,.5)}}
 mark.hl-flash{border-radius:3px;animation:hlFlash 1.4s ease}
+
+/* 모아보기 FAB */
+.hl-fab{position:fixed;right:20px;bottom:20px;z-index:40;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:10px 16px;font:inherit;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;box-shadow:0 6px 20px rgba(27,36,50,.16)}
+.hl-fab:hover{border-color:var(--accent)}
+.hl-fab b{color:var(--accent);font-size:15px}
+.hl-fab-chip{width:16px;height:16px;border-radius:4px;background-image:linear-gradient(100deg,rgba(var(--hl-y),.9),rgba(var(--hl-g),.9),rgba(var(--hl-p),.9))}
+
+/* 사이드 서랍 */
+.hl-scrim{position:fixed;inset:0;background:rgba(27,36,50,.45);z-index:80;display:flex;justify-content:flex-end}
+.hl-drawer{width:min(360px,92vw);height:100%;background:var(--surface);box-shadow:-8px 0 30px rgba(27,36,50,.2);display:flex;flex-direction:column;animation:hlDrawerIn .22s ease}
+@keyframes hlDrawerIn{from{transform:translateX(24px);opacity:.6}to{transform:translateX(0);opacity:1}}
+.hl-drawer-head{display:flex;align-items:center;justify-content:space-between;padding:18px 18px 12px;border-bottom:1px solid var(--line)}
+.hl-drawer-title{font-family:var(--mono);font-size:13px;letter-spacing:.06em;color:var(--accent);font-weight:700}
+.hl-drawer .close{position:static;border:none;background:var(--bg);border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer;color:var(--muted)}
+.hl-list{list-style:none;margin:0;padding:8px;overflow-y:auto;flex:1}
+.hl-item{display:flex;flex-direction:column;gap:6px;width:100%;text-align:left;background:none;border:none;border-radius:10px;padding:12px;font:inherit;cursor:pointer}
+.hl-item:hover{background:#F6F8FB}
+.hl-item-day{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--accent);font-weight:600}
+mark.hl-quote{display:inline;font-size:13.5px;line-height:1.7;color:var(--ink)}

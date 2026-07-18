@@ -35,6 +35,8 @@ export default function Course({
   const [popover, setPopover] = useState<{ x: number; y: number; flip: boolean } | null>(null);
   const [tip, setTip] = useState<{ x: number; y: number; hid: number } | null>(null);
   const focusHidRef = useRef<number | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [repaintTick, setRepaintTick] = useState(0);
 
   const today = useMemo(() => {
     for (let i = 1; i <= TOTAL_DAYS; i++) if (!done.has(i)) return i;
@@ -200,7 +202,18 @@ export default function Course({
         setTimeout(() => marks.forEach((m) => m.classList.remove("hl-flash")), 1400);
       }
     }
-  }, [openDay, hls]);
+  }, [openDay, hls, repaintTick]);
+
+  // 서랍 항목 → 원문 점프
+  function jumpTo(h: HighlightRow) {
+    setDrawerOpen(false);
+    focusHidRef.current = h.id;
+    if (openDay === h.day) {
+      setRepaintTick((t) => t + 1); // 같은 day: 리페인트만 트리거
+    } else {
+      openLesson(h.day); // 다른 day: 열면서 복원 이펙트가 스크롤+플래시
+    }
+  }
   function markDone() {
     if (openDay !== null && !done.has(openDay)) {
       toggle(openDay);
@@ -458,6 +471,42 @@ export default function Course({
           <button className="hl-del" onClick={() => removeHighlight(tip.hid)}>
             삭제
           </button>
+        </div>
+      )}
+
+      {hls.length > 0 && (
+        <button className="hl-fab" onClick={() => setDrawerOpen(true)} aria-label="형광펜 모아보기">
+          <span className="hl-fab-chip" aria-hidden />
+          형광펜 <b>{hls.length}</b>
+        </button>
+      )}
+
+      {drawerOpen && (
+        <div className="hl-scrim" onClick={() => setDrawerOpen(false)}>
+          <aside className="hl-drawer" onClick={(e) => e.stopPropagation()} aria-label="형광펜 모아보기">
+            <div className="hl-drawer-head">
+              <span className="hl-drawer-title">형광펜 {hls.length}</span>
+              <button className="close" aria-label="닫기" onClick={() => setDrawerOpen(false)}>
+                ✕
+              </button>
+            </div>
+            <ul className="hl-list">
+              {[...hls]
+                .sort((a, b) => a.day - b.day || a.id - b.id)
+                .map((h) => (
+                  <li key={h.id}>
+                    <button className="hl-item" onClick={() => jumpTo(h)}>
+                      <span className="hl-item-day">
+                        DAY {h.day} · {dayInfo(h.day).topic}
+                      </span>
+                      <mark className={`hl hl-${h.color} hl-quote`}>
+                        {h.exact.length > 90 ? h.exact.slice(0, 90) + "…" : h.exact}
+                      </mark>
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          </aside>
         </div>
       )}
 
