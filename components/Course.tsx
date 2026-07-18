@@ -34,6 +34,7 @@ export default function Course({
   const pendingAnchorRef = useRef<{ exact: string; prefix: string; suffix: string } | null>(null);
   const [popover, setPopover] = useState<{ x: number; y: number; flip: boolean } | null>(null);
   const [tip, setTip] = useState<{ x: number; y: number; hid: number } | null>(null);
+  const focusHidRef = useRef<number | null>(null);
 
   const today = useMemo(() => {
     for (let i = 1; i <= TOTAL_DAYS; i++) if (!done.has(i)) return i;
@@ -174,6 +175,32 @@ export default function Course({
       });
     });
   }
+
+  // 재방문 복원: 열린 day의 하이라이트를 재탐색해 전부 다시 칠하기 (겹침/중복은 전체 리페인트로 해결)
+  useEffect(() => {
+    const container = bodyRef.current;
+    if (openDay === null || !container) return;
+    unpaint(container);
+    const full = container.textContent ?? "";
+    for (const h of hls) {
+      if (h.day !== openDay) continue;
+      const loc = locateAnchor(full, { exact: h.exact, prefix: h.prefix, suffix: h.suffix });
+      if (loc) paintRange(container, loc[0], loc[1], h.color, h.id);
+    }
+    // 서랍 점프 등으로 focusHid가 지정되면 해당 mark로 스크롤 + 플래시
+    const fh = focusHidRef.current;
+    if (fh != null) {
+      focusHidRef.current = null;
+      const marks = container.querySelectorAll<HTMLElement>(
+        `mark.hl[data-hid="${CSS.escape(String(fh))}"]`
+      );
+      if (marks.length) {
+        marks[0].scrollIntoView({ behavior: "smooth", block: "center" });
+        marks.forEach((m) => m.classList.add("hl-flash"));
+        setTimeout(() => marks.forEach((m) => m.classList.remove("hl-flash")), 1400);
+      }
+    }
+  }, [openDay, hls]);
   function markDone() {
     if (openDay !== null && !done.has(openDay)) {
       toggle(openDay);
