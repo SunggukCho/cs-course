@@ -216,6 +216,22 @@ export default function Course({ initialDone }: { initialDone: number[] }) {
                 {lesson.svg && (
                   <div className="fig" dangerouslySetInnerHTML={{ __html: lesson.svg }} />
                 )}
+                {lesson.videos && lesson.videos.length > 0 && (
+                  <>
+                    <h3>추천 강의</h3>
+                    <ul className="vids">
+                      {lesson.videos.map((v, vi) => (
+                        <li key={vi}>
+                          <a href={v.url} target="_blank" rel="noreferrer">
+                            {v.title}
+                          </a>
+                          <span className="v-ch"> — {v.channel}</span>
+                          {v.note && <span className="v-note"> · {v.note}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
                 <h3>퀴즈로 확인</h3>
                 {lesson.quiz.map((qz, qi) => {
                   const chosen = answers[qi];
@@ -227,13 +243,12 @@ export default function Course({ initialDone }: { initialDone: number[] }) {
                         {qz.opts.map((o, oi) => (
                           <button
                             key={oi}
-                            className={`opt${
-                              answered && oi === qz.ans
+                            className={`opt${answered && oi === qz.ans
                                 ? " correct"
                                 : answered && oi === chosen
                                   ? " wrong"
                                   : ""
-                            }`}
+                              }`}
                             onClick={() => setAnswers((a) => ({ ...a, [qi]: oi }))}
                             dangerouslySetInnerHTML={{
                               __html: `${String.fromCharCode(9312 + oi)} ${o}`,
