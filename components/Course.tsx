@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { forwardRef, memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { CURRICULUM, PHASE_STARTS, TOTAL_DAYS, dayInfo, locate } from "@/lib/curriculum";
 import { LESSONS } from "@/lib/lessons";
 import { toggleDay, createHighlight, deleteHighlight } from "@/lib/actions";
@@ -13,6 +13,32 @@ const HL_COLORS: { key: string; label: string }[] = [
   { key: "g", label: "초록" },
   { key: "p", label: "분홍" },
 ];
+
+/**
+ * 하이라이트를 칠하는 본문 컨테이너. memo로 감싸 부모(Course)의 무관한 리렌더
+ * (팝오버/툴팁/퀴즈 응답/useTransition 완료 등)에서는 재조정되지 않게 한다.
+ * 그러지 않으면 React가 dangerouslySetInnerHTML 영역을 재조정하며 우리가 직접 삽입한
+ * <mark>를 지워버려, 저장/클릭 직후 형광펜이 사라진다.
+ * props(html/svg/onMouseUp/onClick)가 안정적이어야 memo가 동작하므로 핸들러는 useCallback 필수.
+ */
+const LessonBody = memo(
+  forwardRef<
+    HTMLDivElement,
+    {
+      html: string;
+      svg?: string;
+      onMouseUp: () => void;
+      onClick: (e: React.MouseEvent) => void;
+    }
+  >(function LessonBody({ html, svg, onMouseUp, onClick }, ref) {
+    return (
+      <div className="l-body" ref={ref} onMouseUp={onMouseUp} onClick={onClick}>
+        <div dangerouslySetInnerHTML={{ __html: html }} />
+        {svg && <div className="fig" dangerouslySetInnerHTML={{ __html: svg }} />}
+      </div>
+    );
+  })
+);
 
 export default function Course({
   initialDone,
@@ -137,7 +163,8 @@ export default function Course({
   }, []);
 
   // 선택 감지 → 팝오버 위치 계산 (setTimeout 0로 브라우저 선택 반영 이후)
-  function onBodyMouseUp() {
+  // useCallback으로 안정화 — LessonBody memo가 깨지지 않도록
+  const onBodyMouseUp = useCallback(() => {
     setTip(null);
     setTimeout(() => {
       const sel = window.getSelection();
@@ -168,10 +195,10 @@ export default function Course({
       const flip = rect.top < 64; // 뷰포트 상단 근처면 아래쪽으로 보정
       setPopover({ x: rect.left + rect.width / 2, y: flip ? rect.bottom : rect.top, flip });
     }, 0);
-  }
+  }, []);
 
   // 본문 클릭 → mark면 삭제 툴팁
-  function onBodyClick(e: React.MouseEvent) {
+  const onBodyClick = useCallback((e: React.MouseEvent) => {
     const el = (e.target as HTMLElement).closest?.("mark.hl") as HTMLElement | null;
     if (!el) {
       setTip(null);
@@ -181,7 +208,7 @@ export default function Course({
     const rect = el.getBoundingClientRect();
     setPopover(null);
     setTip({ x: rect.left + rect.width / 2, y: rect.top, hid });
-  }
+  }, []);
 
   // 스와치 클릭 → 낙관적 저장
   function saveHighlight(color: string) {
@@ -421,13 +448,15 @@ export default function Course({
               {openInfo.tag ? ` · ${openInfo.tag}` : ""}
             </div>
             <h2>{openInfo.topic}</h2>
-            <div className="l-body" ref={bodyRef} onMouseUp={onBodyMouseUp} onClick={onBodyClick}>
             {lesson ? (
               <>
-                <div dangerouslySetInnerHTML={{ __html: lesson.body }} />
-                {lesson.svg && (
-                  <div className="fig" dangerouslySetInnerHTML={{ __html: lesson.svg }} />
-                )}
+                <LessonBody
+                  ref={bodyRef}
+                  html={lesson.body}
+                  svg={lesson.svg}
+                  onMouseUp={onBodyMouseUp}
+                  onClick={onBodyClick}
+                />
                 {lesson.videos && lesson.videos.length > 0 && (
                   <>
                     <h3>추천 강의</h3>
@@ -483,7 +512,6 @@ export default function Course({
                 진행할 수도 있습니다.
               </div>
             )}
-            </div>
             <div className="l-foot">
               {done.has(openDay) ? (
                 <button className="btn" onClick={markUndone}>
